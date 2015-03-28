@@ -27,52 +27,90 @@ bl_info = {
     "tracker_url": "",
     "category": "User"}
 
+
 import bpy
 import os
-import json
-import requests
 
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
 
+
+class SystemUtility():
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("Base class may not be instantiated")
+
+    @staticmethod 
+    def blender_id_endpoint():
+        """Gets the endpoint for the authentication API. If the env variable
+        is defined, it's possible to override the (default) production address.
+        """
+        if os.environ.get('BLENDER_ID_ENDPOINT'):
+            return os.environ.get('BLENDER_ID_ENDPOINT')
+        else:
+            return "https://www.blender.org/id"
+
+
 class ProfilesUtility():
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("Base class may not be instantiated")
+
+    @staticmethod 
     def get_profiles_file():
         profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
         profiles_file = os.path.join(profiles_path, 'profiles.json')
         if not os.path.exists(profiles_file):
-            profiles = dict(username='', password='')
-            os.makedirs(profiles_path)
+            profiles = {'':''}
+            try:
+                os.makedirs(profiles_path)
+            except FileExistsError:
+                pass
+            import json
             with open(profiles_file, 'w') as outfile:
                 json.dump(profiles, outfile)
         return profiles_file
 
+    @staticmethod 
     def authenticate(username, password):
-        payload = dict(username=username, password=password)
-        r = requests.post("http://localhost:8000/u/identify", data=payload)
+        import requests
+        import socket
+        payload = dict(
+            username=username,
+            password=password,
+            hostname=socket.gethostname())
+        try:
+            r = requests.post("{0}/u/identify".format(
+                SystemUtility.blender_id_endpoint()), data=payload)
+        except requests.exceptions.ConnectionError as e:
+            raise e
+
         message = r.json()['message']
         if r.status_code == 200:
             authenticated = True
+            token = r.json()['token']
         else:
             authenticated = False
-        return dict(authenticated=authenticated, message=message)
+            token = None
+        return dict(authenticated=authenticated, message=message, token=token)
 
     @classmethod
     def credentials_load(cls):
         """Loads the credentials from a profile file. TODO: add a username arg
         so that one out of many identities can be retrieved.
         """
-
+        import json
         profiles_file = cls.get_profiles_file()
-        with open(profiles_file) as outfile:
-            return json.load(outfile)
+        with open(profiles_file) as f:
+            return json.load(f)
 
     @classmethod
     def credentials_save(cls, credentials):
-        authentication = cls.authenticate(credentials['username'], credentials['password'])
+        authentication = cls.authenticate(
+            credentials['username'], credentials['password'])
         if authentication['authenticated']:
+            import json
             profiles_file = cls.get_profiles_file()
             with open(profiles_file, 'w') as outfile:
-                json.dump(credentials, outfile)
+                json.dump({credentials['username'] : authentication['token']}, outfile)
         return dict(message=authentication['message'])
 
 
@@ -80,14 +118,18 @@ class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
 
     profiles = ProfilesUtility.credentials_load()
+    if profiles: 
+        username = next(iter(profiles.values()))
+    else:
+        username = ""
     blender_id_username = StringProperty(
         name="Username",
-        default=profiles['username'],
+        default=username,
         options={'HIDDEN', 'SKIP_SAVE'})
 
     blender_id_password = StringProperty(
         name="Password",
-        default=profiles['username'],
+        default="",
         options={'HIDDEN', 'SKIP_SAVE'},
         subtype='PASSWORD')
 
@@ -107,7 +149,14 @@ class BlenderIdSaveCredentials(bpy.types.Operator):
         credentials = dict(
             username=addon_prefs.blender_id_username,
             password=addon_prefs.blender_id_password)
-        r = ProfilesUtility.credentials_save(credentials)
+        try:
+            r = ProfilesUtility.credentials_save(credentials)
+        except Exception:
+            self.report({'ERROR'}, "Can't connect to {0}".format(
+                SystemUtility.blender_id_endpoint()))
+
+
+
         return{'FINISHED'}
 
 
