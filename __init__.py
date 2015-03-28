@@ -118,8 +118,8 @@ class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
 
     profiles = ProfilesUtility.credentials_load()
-    if profiles: 
-        username = profiles.get("username", "")
+    if profiles:
+        username = list(profiles.keys())[0]
     else:
         username = ""
     blender_id_username = StringProperty(
