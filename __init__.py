@@ -61,7 +61,7 @@ class ProfilesUtility():
                 os.makedirs(profiles_path)
             except FileExistsError:
                 pass
-            except Exception, e:
+            except Exception as e:
                 raise e
 
             import json
@@ -154,8 +154,6 @@ class BlenderIdSaveCredentials(bpy.types.Operator):
         except Exception:
             self.report({'ERROR'}, "Can't connect to {0}".format(
                 SystemUtility.blender_id_endpoint()))
-
-
 
         return{'FINISHED'}
 
