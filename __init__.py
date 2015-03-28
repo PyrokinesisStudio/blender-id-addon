@@ -44,10 +44,7 @@ class SystemUtility():
         """Gets the endpoint for the authentication API. If the env variable
         is defined, it's possible to override the (default) production address.
         """
-        if os.environ.get('BLENDER_ID_ENDPOINT'):
-            return os.environ.get('BLENDER_ID_ENDPOINT')
-        else:
-            return "https://www.blender.org/id"
+        return os.environ.get('BLENDER_ID_ENDPOINT', "https://www.blender.org/id")
 
 
 class ProfilesUtility():
@@ -64,6 +61,9 @@ class ProfilesUtility():
                 os.makedirs(profiles_path)
             except FileExistsError:
                 pass
+            except Exception, e:
+                raise e
+
             import json
             with open(profiles_file, 'w') as outfile:
                 json.dump(profiles, outfile)
@@ -119,7 +119,7 @@ class BlenderIdPreferences(AddonPreferences):
 
     profiles = ProfilesUtility.credentials_load()
     if profiles: 
-        username = next(iter(profiles.values()))
+        username = profiles.get("username", "")
     else:
         username = ""
     blender_id_username = StringProperty(
