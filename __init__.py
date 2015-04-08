@@ -53,10 +53,17 @@ class ProfilesUtility():
 
     @staticmethod 
     def get_profiles_file():
+        """Returns the profiles.json filepath from a .blender_id folder in the user
+        home directory. If the file does not exist we create one with the basic data
+        structure.
+        """
         profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
         profiles_file = os.path.join(profiles_path, 'profiles.json')
         if not os.path.exists(profiles_file):
-            profiles = {'':''}
+            profiles = [{
+                "username" : "",
+                "token" : "",
+                "is_active" : False}]
             try:
                 os.makedirs(profiles_path)
             except FileExistsError:
@@ -71,6 +78,11 @@ class ProfilesUtility():
 
     @staticmethod 
     def authenticate(username, password):
+        """Authenticate the user with a single transaction containing username and
+        password (must happen via HTTPS). If the transaction is successful, we return
+        the token (that will be used to represent that username and password combination)
+        and a message confirming the succesful login.
+        """
         import requests
         import socket
         payload = dict(
@@ -104,13 +116,20 @@ class ProfilesUtility():
 
     @classmethod
     def credentials_save(cls, credentials):
+        """Given login credentials (Blender-ID username and password), we use the
+        authenticate function to generate the token, which we store in the profiles.json.
+        Currently we overwrite all credentials with the new one if succesful.
+        """
         authentication = cls.authenticate(
             credentials['username'], credentials['password'])
         if authentication['authenticated']:
             import json
             profiles_file = cls.get_profiles_file()
             with open(profiles_file, 'w') as outfile:
-                json.dump({credentials['username'] : authentication['token']}, outfile)
+                json.dump([{
+                    "username" : credentials['username'],
+                    "token" : authentication['token'],
+                    "is_active" : True}], outfile)
         return dict(message=authentication['message'])
 
 
@@ -119,7 +138,7 @@ class BlenderIdPreferences(AddonPreferences):
 
     profiles = ProfilesUtility.credentials_load()
     if profiles:
-        username = list(profiles.keys())[0]
+        username = profiles[0]['username']
     else:
         username = ""
     blender_id_username = StringProperty(
