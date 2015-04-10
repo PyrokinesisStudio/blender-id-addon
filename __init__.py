@@ -44,7 +44,7 @@ class SystemUtility():
         """Gets the endpoint for the authentication API. If the env variable
         is defined, it's possible to override the (default) production address.
         """
-        return os.environ.get('BLENDER_ID_ENDPOINT', "https://www.blender.org/id")
+        return os.environ.get('BLENDER_ID_ENDPOINT', "http://www.blender.org/id")
 
 
 class ProfilesUtility():
