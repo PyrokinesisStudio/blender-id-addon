@@ -149,7 +149,6 @@ class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
 
     profile = ProfilesUtility.get_active_profile()
-    print(profile)
     if profile:
         username = profile['username']
     else:
