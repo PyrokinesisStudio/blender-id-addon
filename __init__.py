@@ -132,13 +132,26 @@ class ProfilesUtility():
                     "is_active" : True}], outfile)
         return dict(message=authentication['message'])
 
+    @classmethod
+    def get_active_profile(cls):
+        """Pick the active profile from the profiles.json. If no active profile is found
+        we return None.
+        """
+        profiles = ProfilesUtility.credentials_load()
+        index = next((index for (index, d) in enumerate(profiles) if d["is_active"] == True), None)
+        if index is not None:
+            return profiles[index]
+        else:
+            return None
+
 
 class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
 
-    profiles = ProfilesUtility.credentials_load()
-    if profiles:
-        username = profiles[0]['username']
+    profile = ProfilesUtility.get_active_profile()
+    print(profile)
+    if profile:
+        username = profile['username']
     else:
         username = ""
     blender_id_username = StringProperty(
@@ -154,9 +167,13 @@ class BlenderIdPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "blender_id_username")
-        layout.prop(self, "blender_id_password")
-        layout.operator("blender_id.save_credentials")
+        if self.username != "":
+            text = "You are logged in as {0}".format(self.username)
+            layout.label(text=text, icon='WORLD_DATA')
+        else:
+            layout.prop(self, "blender_id_username")
+            layout.prop(self, "blender_id_password")
+            layout.operator("blender_id.save_credentials")
 
 
 class BlenderIdSaveCredentials(bpy.types.Operator):
