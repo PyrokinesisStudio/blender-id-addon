@@ -16,16 +16,20 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+# <pep8-80 compliant>
+
 bl_info = {
     "name": "Blender ID authentication",
-    "author": "Francesco Siddi",
-    "version": (0, 0, 1),
+    "author": "Francesco Siddi and Ines Almeida",
+    "version": (0, 0, 2),
     "blender": (2, 73, 0),
-    "location": "",
-    "description": "Stores your Blender ID credentials",
+    "location": "Add-on preferences",
+    "description":
+        "Stores your Blender ID credentials for usage with other add-ons",
     "wiki_url": "",
     "tracker_url": "",
-    "category": "User"}
+    "category": "User"
+}
 
 
 import bpy
@@ -33,37 +37,41 @@ import os
 
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
+from bpy.types import Operator
 
 
 class SystemUtility():
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
-    @staticmethod 
+    @staticmethod
     def blender_id_endpoint():
         """Gets the endpoint for the authentication API. If the env variable
         is defined, it's possible to override the (default) production address.
         """
-        return os.environ.get('BLENDER_ID_ENDPOINT', "http://www.blender.org/id")
+        return os.environ.get(
+            'BLENDER_ID_ENDPOINT',
+            "http://www.blender.org/id"
+        )
 
 
 class ProfilesUtility():
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
-    @staticmethod 
+    @staticmethod
     def get_profiles_file():
-        """Returns the profiles.json filepath from a .blender_id folder in the user
-        home directory. If the file does not exist we create one with the basic data
-        structure.
+        """Returns the profiles.json filepath from a .blender_id folder in the
+        user home directory. If the file does not exist we create one with the
+        basic data structure.
         """
         profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
         profiles_file = os.path.join(profiles_path, 'profiles.json')
         if not os.path.exists(profiles_file):
             profiles = [{
-                "username" : "",
-                "token" : "",
-                "is_active" : False}]
+                "username": "",
+                "token": "",
+                "is_active": False}]
             try:
                 os.makedirs(profiles_path)
             except FileExistsError:
@@ -76,12 +84,12 @@ class ProfilesUtility():
                 json.dump(profiles, outfile)
         return profiles_file
 
-    @staticmethod 
+    @staticmethod
     def authenticate(username, password):
-        """Authenticate the user with a single transaction containing username and
-        password (must happen via HTTPS). If the transaction is successful, we return
-        the token (that will be used to represent that username and password combination)
-        and a message confirming the succesful login.
+        """Authenticate the user with a single transaction containing username
+        and password (must happen via HTTPS). If the transaction is successful,
+        we return the token (that will be used to represent that username and
+        password combination) and a message confirming the successful login.
         """
         import requests
         import socket
@@ -116,9 +124,10 @@ class ProfilesUtility():
 
     @classmethod
     def credentials_save(cls, credentials):
-        """Given login credentials (Blender-ID username and password), we use the
-        authenticate function to generate the token, which we store in the profiles.json.
-        Currently we overwrite all credentials with the new one if succesful.
+        """Given login credentials (Blender-ID username and password), we use
+        the authenticate function to generate the token, which we store in the
+        profiles.json. Currently we overwrite all credentials with the new one
+        if successful.
         """
         authentication = cls.authenticate(
             credentials['username'], credentials['password'])
@@ -127,15 +136,15 @@ class ProfilesUtility():
             profiles_file = cls.get_profiles_file()
             with open(profiles_file, 'w') as outfile:
                 json.dump([{
-                    "username" : credentials['username'],
-                    "token" : authentication['token'],
-                    "is_active" : True}], outfile)
+                    "username": credentials['username'],
+                    "token": authentication['token'],
+                    "is_active": True}], outfile)
         return dict(message=authentication['message'])
 
     @classmethod
     def get_active_profile(cls):
-        """Pick the active profile from the profiles.json. If no active profile is found
-        we return None.
+        """Pick the active profile from the profiles.json. If no active profile
+        is found we return None.
         """
         profiles = ProfilesUtility.credentials_load()
         index = next((index for (index, d) in enumerate(profiles) if d["is_active"] == True), None)
@@ -153,16 +162,19 @@ class BlenderIdPreferences(AddonPreferences):
         username = profile['username']
     else:
         username = ""
+
     blender_id_username = StringProperty(
         name="Username",
         default=username,
-        options={'HIDDEN', 'SKIP_SAVE'})
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
 
     blender_id_password = StringProperty(
         name="Password",
         default="",
         options={'HIDDEN', 'SKIP_SAVE'},
-        subtype='PASSWORD')
+        subtype='PASSWORD'
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -175,9 +187,10 @@ class BlenderIdPreferences(AddonPreferences):
             layout.operator("blender_id.save_credentials")
 
 
-class BlenderIdSaveCredentials(bpy.types.Operator):
+class BlenderIdSaveCredentials(Operator):
     bl_idname = "blender_id.save_credentials"
     bl_label = "Save credentials"
+
     def execute(self, context):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
@@ -196,8 +209,10 @@ class BlenderIdSaveCredentials(bpy.types.Operator):
 def register():
     bpy.utils.register_module(__name__)
 
+
 def unregister():
     bpy.utils.unregister_module(__name__)
+
 
 if __name__ == "__main__":
     register()
