@@ -112,25 +112,6 @@ class ProfilesUtility():
         return dict(authenticated=authenticated, message=message, token=token)
 
     @classmethod
-    def credentials_load(cls):
-        """Loads all profiles' credentials."""
-        import json
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file) as f:
-            return json.load(f)['profiles']
-
-    @classmethod
-    def credentials_load(cls, username):
-        """Loads the credentials from a profile file given an username."""
-        import json
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file) as f:
-            return dict(
-                username=username,
-                token=json.load(f)['profiles'][username]
-            )
-
-    @classmethod
     def credentials_save(cls, credentials):
         """Given login credentials (Blender-ID username and password), we use
         the authenticate function to generate the token, which we store in the
@@ -156,12 +137,30 @@ class ProfilesUtility():
         return dict(message=authentication['message'])
 
     @classmethod
+    def credentials_load(cls):
+        """Loads all profiles' credentials."""
+        import json
+        profiles_file = cls.get_profiles_file()
+        with open(profiles_file) as f:
+            return json.load(f)['profiles']
+
+    @classmethod
+    def credentials_load(cls, username):
+        """Loads the credentials from a profile file given an username."""
+        import json
+        profiles_file = cls.get_profiles_file()
+        with open(profiles_file) as f:
+            return dict(
+                username=username,
+                token=json.load(f)['profiles'][username]
+            )
+
+    @classmethod
     def get_active_username(cls):
         """Get the currently active username. If there is no 
         active profile on the file, this function will return None.
         """
         import json
-
         profiles_file = cls.get_profiles_file()
         with open(profiles_file, "r") as f:
             return json.load(f)['active_profile']
