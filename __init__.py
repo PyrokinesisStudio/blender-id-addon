@@ -68,10 +68,6 @@ class ProfilesUtility():
         profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
         profiles_file = os.path.join(profiles_path, 'profiles.json')
         if not os.path.exists(profiles_file):
-            profiles = [{
-                "username": "",
-                "token": "",
-                "is_active": False}]
             try:
                 os.makedirs(profiles_path)
             except FileExistsError:
@@ -81,7 +77,10 @@ class ProfilesUtility():
 
             import json
             with open(profiles_file, 'w') as outfile:
-                json.dump(profiles, outfile)
+                json.dump({
+                    "active_profile": "",
+                    "profiles": {}
+                }, outfile)
         return profiles_file
 
     @staticmethod
@@ -114,13 +113,22 @@ class ProfilesUtility():
 
     @classmethod
     def credentials_load(cls):
-        """Loads the credentials from a profile file. TODO: add a username arg
-        so that one out of many identities can be retrieved.
-        """
+        """Loads all profiles' credentials."""
         import json
         profiles_file = cls.get_profiles_file()
         with open(profiles_file) as f:
-            return json.load(f)
+            return json.load(f)['profiles']
+
+    @classmethod
+    def credentials_load(cls, username):
+        """Loads the credentials from a profile file given an username."""
+        import json
+        profiles_file = cls.get_profiles_file()
+        with open(profiles_file) as f:
+            return dict(
+                username=username,
+                token=json.load(f)['profiles'][username]
+            )
 
     @classmethod
     def credentials_save(cls, credentials):
@@ -131,27 +139,39 @@ class ProfilesUtility():
         """
         authentication = cls.authenticate(
             credentials['username'], credentials['password'])
+
         if authentication['authenticated']:
             import json
+
             profiles_file = cls.get_profiles_file()
             with open(profiles_file, 'w') as outfile:
-                json.dump([{
-                    "username": credentials['username'],
-                    "token": authentication['token'],
-                    "is_active": True}], outfile)
+
+                profiles = json.load(f)['profiles']
+                profiles[credentials['username']] = authentication['token']
+                json.dump({
+                    "active_profile": credentials['username'],
+                    "profiles": profiles
+                }, outfile)
+
         return dict(message=authentication['message'])
 
     @classmethod
-    def get_active_profile(cls):
-        """Pick the active profile from the profiles.json. If no active profile
-        is found we return None.
+    def get_active_username(cls):
+        """Get the currently active username. If there is no 
+        active profile on the file, this function will return None.
         """
-        profiles = ProfilesUtility.credentials_load()
-        index = next((index for (index, d) in enumerate(profiles) if d["is_active"] == True), None)
-        if index is not None:
-            return profiles[index]
-        else:
-            return None
+        import json
+
+        profiles_file = cls.get_profiles_file()
+        with open(profiles_file, "r") as f:
+            return json.load(f)['active_profile']
+
+    @classmethod
+    def get_active_profile(cls):
+        """Pick the active profile from the profiles.json. If there is no 
+        active profile on the file, this function will return None.
+        """
+        return cls.credentials_load(cls.get_active_username())
 
 
 class BlenderIdPreferences(AddonPreferences):
