@@ -20,7 +20,7 @@
 
 bl_info = {
     "name": "Blender ID authentication",
-    "author": "Francesco Siddi and Ines Almeida",
+    "author": "Francesco Siddi and Inês Almeida",
     "version": (0, 0, 2),
     "blender": (2, 73, 0),
     "location": "Add-on preferences",
