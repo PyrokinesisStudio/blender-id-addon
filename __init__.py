@@ -52,7 +52,7 @@ class SystemUtility():
         """
         return os.environ.get(
             'BLENDER_ID_ENDPOINT',
-            "http://www.blender.org/id"
+            'http://www.blender.org/id'
         )
 
 
@@ -79,8 +79,8 @@ class ProfilesUtility():
 
             with open(profiles_file, 'w') as outfile:
                 json.dump({
-                    "active_profile": "",
-                    "profiles": {}
+                    'active_profile': '',
+                    'profiles': {}
                 }, outfile)
         return profiles_file
 
@@ -130,8 +130,8 @@ class ProfilesUtility():
                 profiles[credentials['username']] = authentication['token']
             with open(profiles_file, 'w') as outfile:
                 json.dump({
-                    "active_profile": credentials['username'],
-                    "profiles": profiles
+                    'active_profile': credentials['username'],
+                    'profiles': profiles
                 }, outfile)
         return authentication['status']
 
@@ -145,7 +145,7 @@ class ProfilesUtility():
     @classmethod
     def credentials_load(cls, username):
         """Loads the credentials from a profile file given an username."""
-        if username == "":
+        if username == '':
             return None
 
         profiles_file = cls.get_profiles_file()
@@ -170,7 +170,7 @@ class ProfilesUtility():
         active profile on the file, this function will return None.
         """
         username = cls.get_active_username()
-        if username == "":
+        if username == '':
             return None
         else:
             return cls.credentials_load(username)
@@ -186,7 +186,7 @@ class ProfilesUtility():
             file_content = json.load(f)
             # remove user from 'active profile'
             if file_content['active_profile'] == username:
-                file_content['active_profile'] = ""
+                file_content['active_profile'] = ''
             # remove both user and token from profiles list
             if username in file_content['profiles']:
                 del file_content['profiles'][username]
@@ -204,36 +204,36 @@ class BlenderIdPreferences(AddonPreferences):
     if profile:
         username = profile['username']
     else:
-        username = ""
+        username = ''
 
     blender_id_username = StringProperty(
-        name="Username",
+        name='Username',
         default=username,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
 
     blender_id_password = StringProperty(
-        name="Password",
-        default="",
+        name='Password',
+        default='',
         options={'HIDDEN', 'SKIP_SAVE'},
         subtype='PASSWORD'
     )
 
     def draw(self, context):
         layout = self.layout
-        if self.username != "":
+        if self.username != '':
             text = "You are logged in as {0}".format(self.username)
             layout.label(text=text, icon='WORLD_DATA')
-            layout.operator("blender_id.logout")
+            layout.operator('blender_id.logout')
         else:
-            layout.prop(self, "blender_id_username")
-            layout.prop(self, "blender_id_password")
-            layout.operator("blender_id.save_credentials")
+            layout.prop(self, 'blender_id_username')
+            layout.prop(self, 'blender_id_password')
+            layout.operator('blender_id.save_credentials')
 
 
 class BlenderIdSaveCredentials(Operator):
-    bl_idname = "blender_id.save_credentials"
-    bl_label = "Save credentials"
+    bl_idname = 'blender_id.save_credentials'
+    bl_label = 'Save credentials'
 
     def execute(self, context):
         user_preferences = context.user_preferences
@@ -250,8 +250,8 @@ class BlenderIdSaveCredentials(Operator):
         return{'FINISHED'}
 
 class BlenderIdLogout(Operator):
-    bl_idname = "blender_id.logout"
-    bl_label = "Logout"
+    bl_idname = 'blender_id.logout'
+    bl_label = 'Logout'
 
     def execute(self, context):
         user_preferences = context.user_preferences
@@ -273,5 +273,5 @@ def unregister():
     bpy.utils.unregister_module(__name__)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     register()
