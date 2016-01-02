@@ -161,7 +161,7 @@ class ProfilesUtility():
         active profile on the file, this function will return None.
         """
         profiles_file = cls.get_profiles_file()
-        with open(profiles_file, "r") as f:
+        with open(profiles_file, 'r') as f:
             return json.load(f)['active_profile']
 
     @classmethod
@@ -182,13 +182,19 @@ class ProfilesUtility():
         profile is changed but there isn't an explicit logout.
         """
         profiles_file = cls.get_profiles_file()
-        with open(profiles_file, "rw") as f:
+        with open(profiles_file, 'r') as f:
             file_content = json.load(f)
+            # remove user from 'active profile'
             if file_content['active_profile'] == username:
                 file_content['active_profile'] = ""
+            # remove both user and token from profiles list
             if username in file_content['profiles']:
                 del file_content['profiles'][username]
-            print(json.dump(file_content))
+        with open(profiles_file, 'w') as outfile:
+            json.dump(file_content, outfile)
+
+        # TODO: invalidate login token for this user on the server
+
 
 
 class BlenderIdPreferences(AddonPreferences):
