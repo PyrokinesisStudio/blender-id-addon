@@ -172,6 +172,23 @@ class ProfilesUtility():
         """
         return cls.credentials_load(cls.get_active_username())
 
+    @classmethod
+    def logout(cls, username):
+        """
+        Invalidates the token and state of active for this username.
+        This is different from switching the active profile, where the active
+        profile is changed but there isn't an explicit logout.
+        """
+        import json
+        profiles_file = cls.get_profiles_file()
+        with open(profiles_file, "rw") as f:
+            file_content = json.load(f)
+            if file_content['active_profile'] == username:
+                file_content['active_profile'] = ""
+            if username in file_content['profiles']:
+                del file_content['profiles'][username]
+            print(json.dump(file_content))
+
 
 class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
@@ -200,6 +217,7 @@ class BlenderIdPreferences(AddonPreferences):
         if self.username != "":
             text = "You are logged in as {0}".format(self.username)
             layout.label(text=text, icon='WORLD_DATA')
+            layout.operator("blender_id.logout")
         else:
             layout.prop(self, "blender_id_username")
             layout.prop(self, "blender_id_password")
@@ -221,6 +239,21 @@ class BlenderIdSaveCredentials(Operator):
         except Exception:
             self.report({'ERROR'}, "Can't connect to {0}".format(
                 SystemUtility.blender_id_endpoint()))
+
+        return{'FINISHED'}
+
+class BlenderIdLogout(Operator):
+    bl_idname = "blender_id.logout"
+    bl_label = "Logout"
+
+    def execute(self, context):
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+
+        try:
+            r = ProfilesUtility.logout(addon_prefs.blender_id_username)
+        except Exception as e:
+            self.report(e)
 
         return{'FINISHED'}
 
