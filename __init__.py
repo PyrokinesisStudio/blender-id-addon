@@ -34,6 +34,7 @@ bl_info = {
 
 import bpy
 import os
+import json
 
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
@@ -75,7 +76,7 @@ class ProfilesUtility():
             except Exception as e:
                 raise e
 
-            import json
+
             with open(profiles_file, 'w') as outfile:
                 json.dump({
                     "active_profile": "",
@@ -102,14 +103,15 @@ class ProfilesUtility():
         except requests.exceptions.ConnectionError as e:
             raise e
 
-        message = r.json()['message']
+        print (r.json())
+
         if r.status_code == 200:
             authenticated = True
-            token = r.json()['token']
+            token = r.json()['data']['token']
         else:
             authenticated = False
             token = None
-        return dict(authenticated=authenticated, message=message, token=token)
+        return dict(authenticated=authenticated, token=token)
 
     @classmethod
     def credentials_save(cls, credentials):
@@ -122,24 +124,20 @@ class ProfilesUtility():
             credentials['username'], credentials['password'])
 
         if authentication['authenticated']:
-            import json
-
             profiles_file = cls.get_profiles_file()
-            with open(profiles_file, 'w') as outfile:
-
+            with open(profiles_file, 'r') as f:
                 profiles = json.load(f)['profiles']
                 profiles[credentials['username']] = authentication['token']
+            with open(profiles_file, 'w') as outfile:
                 json.dump({
                     "active_profile": credentials['username'],
                     "profiles": profiles
                 }, outfile)
-
-        return dict(message=authentication['message'])
+        return authentication['status']
 
     @classmethod
     def credentials_load(cls):
         """Loads all profiles' credentials."""
-        import json
         profiles_file = cls.get_profiles_file()
         with open(profiles_file) as f:
             return json.load(f)['profiles']
@@ -147,7 +145,9 @@ class ProfilesUtility():
     @classmethod
     def credentials_load(cls, username):
         """Loads the credentials from a profile file given an username."""
-        import json
+        if username == "":
+            return None
+
         profiles_file = cls.get_profiles_file()
         with open(profiles_file) as f:
             return dict(
@@ -157,29 +157,30 @@ class ProfilesUtility():
 
     @classmethod
     def get_active_username(cls):
-        """Get the currently active username. If there is no 
+        """Get the currently active username. If there is no
         active profile on the file, this function will return None.
         """
-        import json
         profiles_file = cls.get_profiles_file()
         with open(profiles_file, "r") as f:
             return json.load(f)['active_profile']
 
     @classmethod
     def get_active_profile(cls):
-        """Pick the active profile from the profiles.json. If there is no 
+        """Pick the active profile from the profiles.json. If there is no
         active profile on the file, this function will return None.
         """
-        return cls.credentials_load(cls.get_active_username())
+        username = cls.get_active_username()
+        if username == "":
+            return None
+        else:
+            return cls.credentials_load(username)
 
     @classmethod
     def logout(cls, username):
-        """
-        Invalidates the token and state of active for this username.
+        """Invalidates the token and state of active for this username.
         This is different from switching the active profile, where the active
         profile is changed but there isn't an explicit logout.
         """
-        import json
         profiles_file = cls.get_profiles_file()
         with open(profiles_file, "rw") as f:
             file_content = json.load(f)
