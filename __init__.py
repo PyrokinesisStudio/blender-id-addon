@@ -35,7 +35,8 @@ bl_info = {
 import bpy
 import os
 import json
-
+import requests
+import socket
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
 from bpy.types import Operator
@@ -76,10 +77,9 @@ class ProfilesUtility():
             except Exception as e:
                 raise e
 
-
             with open(profiles_file, 'w') as outfile:
                 json.dump({
-                    'active_profile': '',
+                    'active_profile': None,
                     'profiles': {}
                 }, outfile)
         return profiles_file
@@ -91,8 +91,6 @@ class ProfilesUtility():
         we return the token (that will be used to represent that username and
         password combination) and a message confirming the successful login.
         """
-        import requests
-        import socket
         payload = dict(
             username=username,
             password=password,
@@ -103,15 +101,17 @@ class ProfilesUtility():
         except requests.exceptions.ConnectionError as e:
             raise e
 
-        print (r.json())
-
         if r.status_code == 200:
-            authenticated = True
-            token = r.json()['data']['token']
+            r = r.json()
+            token = r['data']['token']
+            status = r['status']
         else:
-            authenticated = False
             token = None
-        return dict(authenticated=authenticated, token=token)
+            status = None
+        return dict(
+            status=status,
+            token=token,
+            username=username)
 
     @classmethod
     def credentials_save(cls, credentials):
@@ -123,17 +123,21 @@ class ProfilesUtility():
         authentication = cls.authenticate(
             credentials['username'], credentials['password'])
 
-        if authentication['authenticated']:
+        if authentication['status'] == 'success':
             profiles_file = cls.get_profiles_file()
             with open(profiles_file, 'r') as f:
                 profiles = json.load(f)['profiles']
-                profiles[credentials['username']] = authentication['token']
+                profiles[authentication['username']] = dict(
+                    username=credentials['username'],
+                    token=authentication['token'])
             with open(profiles_file, 'w') as outfile:
                 json.dump({
-                    'active_profile': credentials['username'],
+                    'active_profile': authentication['username'],
                     'profiles': profiles
                 }, outfile)
-        return authentication['status']
+        return dict(
+            status=authentication['status'],
+            username=authentication['username'])
 
     @classmethod
     def credentials_load(cls):
@@ -144,16 +148,16 @@ class ProfilesUtility():
 
     @classmethod
     def credentials_load(cls, username):
-        """Loads the credentials from a profile file given an username."""
+        """Loads the credentials from a profile file given a username."""
         if username == '':
             return None
 
         profiles_file = cls.get_profiles_file()
         with open(profiles_file) as f:
+            profile = json.load(f)['profiles'][username]
             return dict(
-                username=username,
-                token=json.load(f)['profiles'][username]
-            )
+                username=profile['username'],
+                token=profile['token'])
 
     @classmethod
     def get_active_username(cls):
@@ -170,7 +174,7 @@ class ProfilesUtility():
         active profile on the file, this function will return None.
         """
         username = cls.get_active_username()
-        if username == '':
+        if username == None:
             return None
         else:
             return cls.credentials_load(username)
@@ -184,17 +188,16 @@ class ProfilesUtility():
         profiles_file = cls.get_profiles_file()
         with open(profiles_file, 'r') as f:
             file_content = json.load(f)
-            # remove user from 'active profile'
+            # Remove user from 'active profile'
             if file_content['active_profile'] == username:
-                file_content['active_profile'] = ''
-            # remove both user and token from profiles list
+                file_content['active_profile'] = None
+            # Remove both user and token from profiles list
             if username in file_content['profiles']:
                 del file_content['profiles'][username]
         with open(profiles_file, 'w') as outfile:
             json.dump(file_content, outfile)
 
         # TODO: invalidate login token for this user on the server
-
 
 
 class BlenderIdPreferences(AddonPreferences):
@@ -211,7 +214,6 @@ class BlenderIdPreferences(AddonPreferences):
         default=username,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
-
     blender_id_password = StringProperty(
         name='Password',
         default='',
@@ -243,11 +245,12 @@ class BlenderIdSaveCredentials(Operator):
             password=addon_prefs.blender_id_password)
         try:
             r = ProfilesUtility.credentials_save(credentials)
-        except Exception:
+        except Exception as e:
             self.report({'ERROR'}, "Can't connect to {0}".format(
                 SystemUtility.blender_id_endpoint()))
 
         return{'FINISHED'}
+
 
 class BlenderIdLogout(Operator):
     bl_idname = 'blender_id.logout'
@@ -256,7 +259,6 @@ class BlenderIdLogout(Operator):
     def execute(self, context):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
-
         try:
             r = ProfilesUtility.logout(addon_prefs.blender_id_username)
         except Exception as e:
