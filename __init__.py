@@ -61,28 +61,58 @@ class ProfilesUtility():
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
-    @staticmethod
-    def get_profiles_file():
-        """Returns the profiles.json filepath from a .blender_id folder in the
+    profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
+    profiles_file = os.path.join(profiles_path, 'profiles.json')
+
+    @classmethod
+    def get_profiles_data(cls):
+        """Returns the profiles.json content from a .blender_id folder in the
         user home directory. If the file does not exist we create one with the
         basic data structure.
         """
-        profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
-        profiles_file = os.path.join(profiles_path, 'profiles.json')
-        if not os.path.exists(profiles_file):
+        profiles_default_data = {
+            'active_profile': None,
+            'profiles': {}
+        }
+
+        # if the file does not exist
+        if not os.path.exists(cls.profiles_file):
             try:
-                os.makedirs(profiles_path)
+                os.makedirs(cls.profiles_path)
             except FileExistsError:
+                # the directory is already there, it is just missing the file
+                # or the file has no permissions <- TODO
                 pass
             except Exception as e:
                 raise e
 
-            with open(profiles_file, 'w') as outfile:
-                json.dump({
-                    'active_profile': None,
-                    'profiles': {}
-                }, outfile)
-        return profiles_file
+            # populate the file
+            with open(cls.profiles_file, 'w') as outfile:
+                json.dump(profiles_default_data, outfile)
+            return profiles_default_data
+
+        # try parsing the file
+        else:
+            with open(cls.profiles_file, 'r') as f:
+                try:
+                    file_data = json.load(f)
+                    file_data['active_profile']
+                    file_data['profiles']
+                    return file_data
+                except (
+                    KeyError, # it doesn't have the expected content
+                    ValueError):
+                    #json.decoder.JSONDecodeError):  # empty or malformed json data
+                    print("(%s) "
+                        "Warning: profiles.json is either empty or malformed. "
+                        "The file will be reset." % __name__)
+
+                    # overwrite the file
+                    with open(cls.profiles_file, 'w') as outfile:
+                        json.dump(profiles_default_data, outfile)
+                    return profiles_default_data
+                except Exception as e:
+                    raise e
 
     @staticmethod
     def authenticate(username, password):
@@ -95,6 +125,7 @@ class ProfilesUtility():
             username=username,
             password=password,
             hostname=socket.gethostname())
+
         try:
             r = requests.post("{0}/u/identify".format(
                 SystemUtility.blender_id_endpoint()), data=payload)
@@ -124,13 +155,11 @@ class ProfilesUtility():
             credentials['username'], credentials['password'])
 
         if authentication['status'] == 'success':
-            profiles_file = cls.get_profiles_file()
-            with open(profiles_file, 'r') as f:
-                profiles = json.load(f)['profiles']
-                profiles[authentication['username']] = dict(
-                    username=credentials['username'],
-                    token=authentication['token'])
-            with open(profiles_file, 'w') as outfile:
+            profiles = cls.get_profiles_data()['profiles']
+            profiles[authentication['username']] = dict(
+                username=credentials['username'],
+                token=authentication['token'])
+            with open(cls.profiles_file, 'w') as outfile:
                 json.dump({
                     'active_profile': authentication['username'],
                     'profiles': profiles
@@ -142,9 +171,7 @@ class ProfilesUtility():
     @classmethod
     def credentials_load(cls):
         """Loads all profiles' credentials."""
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file) as f:
-            return json.load(f)['profiles']
+        return cls.get_profiles_data()['profiles']
 
     @classmethod
     def credentials_load(cls, username):
@@ -152,21 +179,17 @@ class ProfilesUtility():
         if username == '':
             return None
 
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file) as f:
-            profile = json.load(f)['profiles'][username]
-            return dict(
-                username=profile['username'],
-                token=profile['token'])
+        profile = cls.get_profiles_data()['profiles'][username]
+        return dict(
+            username=profile['username'],
+            token=profile['token'])
 
     @classmethod
     def get_active_username(cls):
         """Get the currently active username. If there is no
         active profile on the file, this function will return None.
         """
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file, 'r') as f:
-            return json.load(f)['active_profile']
+        cls.get_profiles_data()['active_profile']
 
     @classmethod
     def get_active_profile(cls):
@@ -185,16 +208,14 @@ class ProfilesUtility():
         This is different from switching the active profile, where the active
         profile is changed but there isn't an explicit logout.
         """
-        profiles_file = cls.get_profiles_file()
-        with open(profiles_file, 'r') as f:
-            file_content = json.load(f)
-            # Remove user from 'active profile'
-            if file_content['active_profile'] == username:
-                file_content['active_profile'] = None
-            # Remove both user and token from profiles list
-            if username in file_content['profiles']:
-                del file_content['profiles'][username]
-        with open(profiles_file, 'w') as outfile:
+        file_content = cls.get_profiles_data()
+        # Remove user from 'active profile'
+        if file_content['active_profile'] == username:
+            file_content['active_profile'] = None
+        # Remove both user and token from profiles list
+        if username in file_content['profiles']:
+            del file_content['profiles'][username]
+        with open(cls.profiles_file, 'w') as outfile:
             json.dump(file_content, outfile)
 
         # TODO: invalidate login token for this user on the server
