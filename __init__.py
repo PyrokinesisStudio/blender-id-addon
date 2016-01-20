@@ -53,7 +53,7 @@ class SystemUtility():
         """
         return os.environ.get(
             'BLENDER_ID_ENDPOINT',
-            'http://www.blender.org/id'
+            'https://www.blender.org/id'
         )
 
 
@@ -128,8 +128,15 @@ class ProfilesUtility():
 
         try:
             r = requests.post("{0}/u/identify".format(
-                SystemUtility.blender_id_endpoint()), data=payload)
+                SystemUtility.blender_id_endpoint()), data=payload, verify=True)
+        except requests.exceptions.SSLError as e:
+            print(repr(e))
+            raise e
+        except requests.exceptions.HTTPError as e:
+            print(e)
+            raise e
         except requests.exceptions.ConnectionError as e:
+            print(e)
             raise e
 
         if r.status_code == 200:
