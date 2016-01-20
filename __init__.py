@@ -233,13 +233,18 @@ class BlenderIdPreferences(AddonPreferences):
 
     profile = ProfilesUtility.get_active_profile()
     if profile:
-        username = profile['username']
+        p_username = profile['username']
     else:
-        username = ''
+        p_username = ''
 
+    active_profile = StringProperty(
+        name='Active Profile',
+        default=p_username,
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
     blender_id_username = StringProperty(
         name='Username',
-        default=username,
+        default=p_username,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
     blender_id_password = StringProperty(
@@ -251,8 +256,8 @@ class BlenderIdPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        if self.username != '':
-            text = "You are logged in as {0}".format(self.username)
+        if self.active_profile != '':
+            text = "You are logged in as {0}".format(self.active_profile)
             layout.label(text=text, icon='WORLD_DATA')
             layout.operator('blender_id.logout')
         else:
@@ -270,7 +275,13 @@ class BlenderIdSaveCredentials(Operator):
         addon_prefs = user_preferences.addons[__name__].preferences
         credentials = dict(
             username=addon_prefs.blender_id_username,
-            password=addon_prefs.blender_id_password)
+            password=addon_prefs.blender_id_password
+        )
+
+        # print("Logging IN")
+        # addon_prefs.active_profile = "Test"
+        # return{'FINISHED'}
+
         try:
             r = ProfilesUtility.credentials_save(credentials)
         except Exception as e:
@@ -287,6 +298,11 @@ class BlenderIdLogout(Operator):
     def execute(self, context):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
+
+        # print("Logging OUT")
+        # addon_prefs.active_profile = ""
+        # return{'FINISHED'}
+
         try:
             r = ProfilesUtility.logout(addon_prefs.blender_id_username)
         except Exception as e:
