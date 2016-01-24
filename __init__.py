@@ -279,8 +279,9 @@ class BlenderIdSaveCredentials(Operator):
             password=addon_prefs.blender_id_password
         )
 
-        # print("Logging IN")
+        # print("%s Logging IN" % __name__)
         # addon_prefs.active_profile = "Test"
+        context.window_manager.blender_id_active_profile = "Test"
         # return{'FINISHED'}
 
         try:
@@ -300,8 +301,9 @@ class BlenderIdLogout(Operator):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        # print("Logging OUT")
+        # print("%s Logging OUT" % __name__)
         # addon_prefs.active_profile = ""
+        context.window_manager.blender_id_active_profile = ""
         # return{'FINISHED'}
 
         try:
@@ -313,10 +315,15 @@ class BlenderIdLogout(Operator):
 
 
 def register():
+    bpy.types.WindowManager.blender_id_active_profile = StringProperty(
+        name='Blender ID Active Profile',
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
     bpy.utils.register_module(__name__)
 
-
 def unregister():
+    del bpy.types.WindowManager.blender_id_active_profile
+
     bpy.utils.unregister_module(__name__)
 
 
