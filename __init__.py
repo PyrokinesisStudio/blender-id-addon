@@ -26,9 +26,10 @@ bl_info = {
     "location": "Add-on preferences",
     "description":
         "Stores your Blender ID credentials for usage with other add-ons",
-    "wiki_url": "",
-    "tracker_url": "",
-    "category": "User"
+    "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/"
+                "Scripts/System/BlenderID",
+    "category": "System",
+    "support": "TESTING"
 }
 
 
