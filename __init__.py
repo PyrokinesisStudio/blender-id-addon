@@ -38,9 +38,11 @@ import os
 import json
 import requests
 import socket
-from bpy.props import StringProperty
 from bpy.types import AddonPreferences
 from bpy.types import Operator
+from bpy.types import PropertyGroup
+from bpy.props import StringProperty
+from bpy.props import PointerProperty
 
 
 class SystemUtility():
@@ -279,10 +281,12 @@ class BlenderIdSaveCredentials(Operator):
             password=addon_prefs.blender_id_password
         )
 
-        # print("%s Logging IN" % __name__)
-        # addon_prefs.active_profile = "Test"
-        context.window_manager.blender_id_active_profile = "Test"
-        # return{'FINISHED'}
+        print("%s Logging IN" % __name__)
+        addon_prefs.active_profile = "Test"
+        active_profile = context.window_manager.blender_id_active_profile
+        active_profile.unique_id = "Test"
+        active_profile.token = "secret token"
+        return{'FINISHED'}
 
         try:
             r = ProfilesUtility.credentials_save(credentials)
@@ -301,10 +305,12 @@ class BlenderIdLogout(Operator):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        # print("%s Logging OUT" % __name__)
-        # addon_prefs.active_profile = ""
-        context.window_manager.blender_id_active_profile = ""
-        # return{'FINISHED'}
+        print("%s Logging OUT" % __name__)
+        addon_prefs.active_profile = ""
+        active_profile = context.window_manager.blender_id_active_profile
+        active_profile.unique_id = ""
+        active_profile.token = ""
+        return{'FINISHED'}
 
         try:
             r = ProfilesUtility.logout(addon_prefs.blender_id_username)
@@ -313,13 +319,25 @@ class BlenderIdLogout(Operator):
 
         return{'FINISHED'}
 
+class BlenderIdProfile(PropertyGroup):
 
-def register():
-    bpy.types.WindowManager.blender_id_active_profile = StringProperty(
-        name='Blender ID Active Profile',
+    unique_id = StringProperty(
+        name='ID',
         options={'HIDDEN', 'SKIP_SAVE'}
     )
+
+    token = StringProperty(
+        name='Token',
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
+
+
+def register():
     bpy.utils.register_module(__name__)
+
+    bpy.types.WindowManager.blender_id_active_profile = \
+        PointerProperty(type=BlenderIdProfile, name='Blender ID Active Profile')
+
 
 def unregister():
     del bpy.types.WindowManager.blender_id_active_profile
