@@ -41,6 +41,7 @@ import socket
 from bpy.types import AddonPreferences
 from bpy.types import Operator
 from bpy.types import PropertyGroup
+from bpy.props import IntProperty
 from bpy.props import StringProperty
 from bpy.props import PointerProperty
 
@@ -57,7 +58,7 @@ class SystemUtility():
         return os.environ.get(
             'BLENDER_ID_ENDPOINT',
             'https://www.blender.org/id'
-        )
+        ).rstrip('/')
 
 
 class ProfilesUtility():
@@ -120,46 +121,59 @@ class ProfilesUtility():
     @staticmethod
     def authenticate(username, password):
         """Authenticate the user with a single transaction containing username
-        and password (must happen via HTTPS). If the transaction is successful,
-        we return the token (that will be used to represent that username and
-        password combination) and a message confirming the successful login.
+        and password (must happen via HTTPS).
+        If the transaction is successful, status will be 'successful' and we
+        return the user's unique blender id and a token (that will be used to
+        represent that username and password combination).
+        If there was a problem, status will be 'fail' and we return an error
+        message. Problems may be with the connection or wrong user/password.
         """
         payload = dict(
             username=username,
             password=password,
-            hostname=socket.gethostname())
-
+            hostname=socket.gethostname()
+        )
         try:
             r = requests.post("{0}/u/identify".format(
                 SystemUtility.blender_id_endpoint()), data=payload, verify=True)
-        except requests.exceptions.SSLError as e:
-            print(repr(e))
-            raise e
-        except requests.exceptions.HTTPError as e:
-            print(e)
-            raise e
-        except requests.exceptions.ConnectionError as e:
-            print(e)
-            raise e
+        except (requests.exceptions.SSLError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.ConnectionError) as e:
+            r = lambda: None # just create an empty object
+            r.status_code = type(e).__name__
+
+        user_id = None
+        token = None
+        error_message = None
 
         if r.status_code == 200:
-            r = r.json()
-            token = r['data']['token']
-            status = r['status']
+            resp = r.json()
+            status = resp['status']
+            if status == 'success':
+                user_id = resp['data']['user_id']
+                token = resp['data']['token']
+            elif status == 'fail':
+                if 'username' in resp['data']:
+                    error_message = "Username does not exist"
+                elif 'password' in resp['data']:
+                    error_message = "Password does not match!"
         else:
-            token = None
-            status = None
+            status = 'fail'
+            error_message = format("There was a problem communicating with"
+                " the server. Error code is: %s" % r.status_code)
+
         return dict(
             status=status,
+            user_id=user_id,
             token=token,
-            username=username)
+            error_message=error_message
+        )
 
     @classmethod
     def credentials_save(cls, credentials):
         """Given login credentials (Blender-ID username and password), we use
-        the authenticate function to generate the token, which we store in the
-        profiles.json. Currently we overwrite all credentials with the new one
-        if successful.
+        the authenticate function to retrieve a user id and token from the
+        server, which we store in the profiles.json.
         """
         authentication = cls.authenticate(
             credentials['username'], credentials['password'])
@@ -168,15 +182,19 @@ class ProfilesUtility():
             profiles = cls.get_profiles_data()['profiles']
             profiles[authentication['username']] = dict(
                 username=credentials['username'],
-                token=authentication['token'])
+                token=authentication['token']
+            )
             with open(cls.profiles_file, 'w') as outfile:
                 json.dump({
                     'active_profile': authentication['username'],
                     'profiles': profiles
                 }, outfile)
+        # elif authentication['status'] == 'fail':
+
         return dict(
             status=authentication['status'],
-            username=authentication['username'])
+            username=authentication['username']
+        )
 
     @classmethod
     def credentials_load(cls):
@@ -234,15 +252,14 @@ class ProfilesUtility():
 class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
 
+    p_username = ''
     profile = ProfilesUtility.get_active_profile()
     if profile:
         p_username = profile['username']
-    else:
-        p_username = ''
 
-    active_profile = StringProperty(
-        name='Active Profile',
-        default=p_username,
+    error_message = StringProperty(
+        name='Error Message',
+        default='',
         options={'HIDDEN', 'SKIP_SAVE'}
     )
     blender_id_username = StringProperty(
@@ -259,40 +276,41 @@ class BlenderIdPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        if self.active_profile != '':
-            text = "You are logged in as {0}".format(self.active_profile)
+        active_profile = context.window_manager.blender_id_active_profile
+        if active_profile.unique_id > 0:
+            text = "You are logged in as {0}".format(active_profile.unique_id)
             layout.label(text=text, icon='WORLD_DATA')
             layout.operator('blender_id.logout')
         else:
+            if self.error_message:
+                layout.label(self.error_message)
             layout.prop(self, 'blender_id_username')
             layout.prop(self, 'blender_id_password')
-            layout.operator('blender_id.save_credentials')
+            layout.operator('blender_id.login')
 
 
-class BlenderIdSaveCredentials(Operator):
-    bl_idname = 'blender_id.save_credentials'
-    bl_label = 'Save credentials'
+class BlenderIdLogin(Operator):
+    bl_idname = 'blender_id.login'
+    bl_label = 'Login'
 
     def execute(self, context):
-        user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
-        credentials = dict(
+        addon_prefs = context.user_preferences.addons[__name__].preferences
+        active_profile = context.window_manager.blender_id_active_profile
+
+        print("%s Logging IN" % __name__)
+
+        resp = ProfilesUtility.authenticate(
             username=addon_prefs.blender_id_username,
             password=addon_prefs.blender_id_password
         )
 
-        print("%s Logging IN" % __name__)
-        addon_prefs.active_profile = "Test"
-        active_profile = context.window_manager.blender_id_active_profile
-        active_profile.unique_id = "Test"
-        active_profile.token = "secret token"
-        return{'FINISHED'}
+        if resp['status'] == "success":
+            active_profile.unique_id = resp['user_id']
+            active_profile.token = resp['token']
+        else:
+            addon_prefs.error_message = resp['error_message']
 
-        try:
-            r = ProfilesUtility.credentials_save(credentials)
-        except Exception as e:
-            self.report({'ERROR'}, "Can't connect to {0}".format(
-                SystemUtility.blender_id_endpoint()))
+        # TODO commit to profiles.json
 
         return{'FINISHED'}
 
@@ -302,26 +320,21 @@ class BlenderIdLogout(Operator):
     bl_label = 'Logout'
 
     def execute(self, context):
-        user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = context.user_preferences.addons[__name__].preferences
+        active_profile = context.window_manager.blender_id_active_profile
 
         print("%s Logging OUT" % __name__)
-        addon_prefs.active_profile = ""
-        active_profile = context.window_manager.blender_id_active_profile
-        active_profile.unique_id = ""
+
+        r = ProfilesUtility.logout(addon_prefs.blender_id_username)
+        active_profile.unique_id = 0
         active_profile.token = ""
+        addon_prefs.error_message = ""
         return{'FINISHED'}
 
-        try:
-            r = ProfilesUtility.logout(addon_prefs.blender_id_username)
-        except Exception as e:
-            self.report(e)
-
-        return{'FINISHED'}
 
 class BlenderIdProfile(PropertyGroup):
 
-    unique_id = StringProperty(
+    unique_id = IntProperty(
         name='ID',
         options={'HIDDEN', 'SKIP_SAVE'}
     )
