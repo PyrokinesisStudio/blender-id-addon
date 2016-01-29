@@ -103,10 +103,9 @@ class ProfilesUtility():
                     file_data['active_profile']
                     file_data['profiles']
                     return file_data
-                except (
+                except (json.decoder.JSONDecodeError, # malformed json data
                     KeyError, # it doesn't have the expected content
                     ValueError):
-                    #json.decoder.JSONDecodeError):  # empty or malformed json data
                     print("(%s) "
                         "Warning: profiles.json is either empty or malformed. "
                         "The file will be reset." % __name__)
@@ -115,13 +114,74 @@ class ProfilesUtility():
                     with open(cls.profiles_file, 'w') as outfile:
                         json.dump(profiles_default_data, outfile)
                     return profiles_default_data
-                except Exception as e:
-                    raise e
+
+    @classmethod
+    def get_active_user_id(cls):
+        """Get the id of the currently active profile. If there is no
+        active profile on the file, this function will return None.
+        """
+        cls.get_profiles_data()['active_profile']
+
+    @classmethod
+    def get_active_profile(cls):
+        """Pick the active profile from the profiles.json. If there is no
+        active profile on the file, this function will return None.
+        """
+        file_content = cls.get_profiles_data()
+        user_id = file_content['active_profile']
+        if user_id == None or user_id <= 0:
+            return None
+        else:
+            return file_content['profiles'][user_id]
+
+    @classmethod
+    def get_profile(cls, user_id):
+        """Loads the profile data for a given user_id if existing
+        else it returns None."""
+        if user_id == None or user_id <= 0:
+            return None
+        profile = cls.get_profiles_data()['profiles'][user_id]
+        return dict(
+            username=profile['username'],
+            token=profile['token']
+        )
+
+    @classmethod
+    def save_as_active_profile(cls, user_id, token, username):
+        """Saves a new profile and marks it as the active one
+        """
+        profiles = cls.get_profiles_data()['profiles']
+        # overwrite or create new profile entry for this user_id
+        profiles[user_id] = dict(
+            username=username,
+            token=token
+        )
+        with open(cls.profiles_file, 'w') as outfile:
+            json.dump({
+                'active_profile': user_id,
+                'profiles': profiles
+            }, outfile)
+
+    @classmethod
+    def logout(cls, user_id):
+        """Invalidates the token and state of active for this user.
+        This is different from switching the active profile, where the active
+        profile is changed but there isn't an explicit logout.
+        """
+        file_content = cls.get_profiles_data()
+        # Remove user from 'active profile'
+        if file_content['active_profile'] == user_id:
+            file_content['active_profile'] = 0
+        # Remove both user and token from profiles list
+        if user_id in file_content['profiles']:
+            del file_content['profiles'][user_id]
+        with open(cls.profiles_file, 'w') as outfile:
+            json.dump(file_content, outfile)
 
     @staticmethod
     def authenticate(username, password):
-        """Authenticate the user with a single transaction containing username
-        and password (must happen via HTTPS).
+        """Authenticate the user with the server with a single transaction
+        containing username and password (must happen via HTTPS).
         If the transaction is successful, status will be 'successful' and we
         return the user's unique blender id and a token (that will be used to
         represent that username and password combination).
@@ -169,74 +229,6 @@ class ProfilesUtility():
             error_message=error_message
         )
 
-    @classmethod
-    def save_active_profile(cls, user_id, token, username):
-        """Saves a new profile and marks it as the active one
-        """
-        profiles = cls.get_profiles_data()['profiles']
-        # overwrite or create new profile entry for this user_id
-        profiles[user_id] = dict(
-            username=username,
-            token=token
-        )
-        with open(cls.profiles_file, 'w') as outfile:
-            json.dump({
-                'active_profile': user_id,
-                'profiles': profiles
-            }, outfile)
-
-    @classmethod
-    def credentials_load(cls):
-        """Loads all profiles' credentials."""
-        return cls.get_profiles_data()['profiles']
-
-    @classmethod
-    def credentials_load(cls, username):
-        """Loads the credentials from a profile file given a username."""
-        if username == '':
-            return None
-
-        profile = cls.get_profiles_data()['profiles'][username]
-        return dict(
-            username=profile['username'],
-            token=profile['token'])
-
-    @classmethod
-    def get_active_username(cls):
-        """Get the currently active username. If there is no
-        active profile on the file, this function will return None.
-        """
-        cls.get_profiles_data()['active_profile']
-
-    @classmethod
-    def get_active_profile(cls):
-        """Pick the active profile from the profiles.json. If there is no
-        active profile on the file, this function will return None.
-        """
-        username = cls.get_active_username()
-        if username == None:
-            return None
-        else:
-            return cls.credentials_load(username)
-
-    @classmethod
-    def logout(cls, user_id):
-        """Invalidates the token and state of active for this user.
-        This is different from switching the active profile, where the active
-        profile is changed but there isn't an explicit logout.
-        """
-        file_content = cls.get_profiles_data()
-        # Remove user from 'active profile'
-        if file_content['active_profile'] == user_id:
-            file_content['active_profile'] = 0
-        # Remove both user and token from profiles list
-        if user_id in file_content['profiles']:
-            del file_content['profiles'][user_id]
-        with open(cls.profiles_file, 'w') as outfile:
-            json.dump(file_content, outfile)
-
-        # TODO: invalidate login token for this user on the server
-
 
 class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
@@ -267,7 +259,7 @@ class BlenderIdPreferences(AddonPreferences):
         layout = self.layout
         active_profile = context.window_manager.blender_id_active_profile
         if active_profile.unique_id > 0:
-            text = "You are logged in as {0}".format(active_profile.unique_id)
+            text = "You are logged in as {0}".format(self.blender_id_username)
             layout.label(text=text, icon='WORLD_DATA')
             layout.operator('blender_id.logout')
         else:
@@ -295,7 +287,7 @@ class BlenderIdLogin(Operator):
             active_profile.unique_id = resp['user_id']
             active_profile.token = resp['token']
 
-            ProfilesUtility.save_active_profile(
+            ProfilesUtility.save_as_active_profile(
                 resp['user_id'],
                 resp['token'],
                 addon_prefs.blender_id_username
@@ -317,6 +309,7 @@ class BlenderIdLogout(Operator):
         active_profile.unique_id = 0
         active_profile.token = ""
         addon_prefs.error_message = ""
+        # TODO: invalidate login token for this user on the server
         return{'FINISHED'}
 
 
