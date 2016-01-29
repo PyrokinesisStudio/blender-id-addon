@@ -170,31 +170,20 @@ class ProfilesUtility():
         )
 
     @classmethod
-    def credentials_save(cls, credentials):
-        """Given login credentials (Blender-ID username and password), we use
-        the authenticate function to retrieve a user id and token from the
-        server, which we store in the profiles.json.
+    def save_active_profile(cls, user_id, token, username):
+        """Saves a new profile and marks it as the active one
         """
-        authentication = cls.authenticate(
-            credentials['username'], credentials['password'])
-
-        if authentication['status'] == 'success':
-            profiles = cls.get_profiles_data()['profiles']
-            profiles[authentication['username']] = dict(
-                username=credentials['username'],
-                token=authentication['token']
-            )
-            with open(cls.profiles_file, 'w') as outfile:
-                json.dump({
-                    'active_profile': authentication['username'],
-                    'profiles': profiles
-                }, outfile)
-        # elif authentication['status'] == 'fail':
-
-        return dict(
-            status=authentication['status'],
-            username=authentication['username']
+        profiles = cls.get_profiles_data()['profiles']
+        # overwrite or create new profile entry for this user_id
+        profiles[user_id] = dict(
+            username=username,
+            token=token
         )
+        with open(cls.profiles_file, 'w') as outfile:
+            json.dump({
+                'active_profile': user_id,
+                'profiles': profiles
+            }, outfile)
 
     @classmethod
     def credentials_load(cls):
@@ -231,18 +220,18 @@ class ProfilesUtility():
             return cls.credentials_load(username)
 
     @classmethod
-    def logout(cls, username):
-        """Invalidates the token and state of active for this username.
+    def logout(cls, user_id):
+        """Invalidates the token and state of active for this user.
         This is different from switching the active profile, where the active
         profile is changed but there isn't an explicit logout.
         """
         file_content = cls.get_profiles_data()
         # Remove user from 'active profile'
-        if file_content['active_profile'] == username:
-            file_content['active_profile'] = None
+        if file_content['active_profile'] == user_id:
+            file_content['active_profile'] = 0
         # Remove both user and token from profiles list
-        if username in file_content['profiles']:
-            del file_content['profiles'][username]
+        if user_id in file_content['profiles']:
+            del file_content['profiles'][user_id]
         with open(cls.profiles_file, 'w') as outfile:
             json.dump(file_content, outfile)
 
@@ -297,8 +286,6 @@ class BlenderIdLogin(Operator):
         addon_prefs = context.user_preferences.addons[__name__].preferences
         active_profile = context.window_manager.blender_id_active_profile
 
-        print("%s Logging IN" % __name__)
-
         resp = ProfilesUtility.authenticate(
             username=addon_prefs.blender_id_username,
             password=addon_prefs.blender_id_password
@@ -307,11 +294,14 @@ class BlenderIdLogin(Operator):
         if resp['status'] == "success":
             active_profile.unique_id = resp['user_id']
             active_profile.token = resp['token']
+
+            ProfilesUtility.save_active_profile(
+                resp['user_id'],
+                resp['token'],
+                addon_prefs.blender_id_username
+            )
         else:
             addon_prefs.error_message = resp['error_message']
-
-        # TODO commit to profiles.json
-
         return{'FINISHED'}
 
 
@@ -323,9 +313,7 @@ class BlenderIdLogout(Operator):
         addon_prefs = context.user_preferences.addons[__name__].preferences
         active_profile = context.window_manager.blender_id_active_profile
 
-        print("%s Logging OUT" % __name__)
-
-        r = ProfilesUtility.logout(addon_prefs.blender_id_username)
+        r = ProfilesUtility.logout(active_profile.unique_id)
         active_profile.unique_id = 0
         active_profile.token = ""
         addon_prefs.error_message = ""
