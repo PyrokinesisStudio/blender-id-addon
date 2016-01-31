@@ -41,7 +41,6 @@ import socket
 from bpy.types import AddonPreferences
 from bpy.types import Operator
 from bpy.types import PropertyGroup
-from bpy.props import IntProperty
 from bpy.props import StringProperty
 from bpy.props import PointerProperty
 
@@ -124,12 +123,13 @@ class ProfilesUtility():
 
     @classmethod
     def get_active_profile(cls):
-        """Pick the active profile from the profiles.json. If there is no
+        """Pick the active profile from profiles.json. If there is no
         active profile on the file, this function will return None.
         """
         file_content = cls.get_profiles_data()
         user_id = file_content['active_profile']
-        if user_id == None or user_id <= 0:
+        if (user_id == None or user_id == "" or
+            user_id not in file_content['profiles']):
             return None
         else:
             return file_content['profiles'][user_id]
@@ -137,9 +137,12 @@ class ProfilesUtility():
     @classmethod
     def get_profile(cls, user_id):
         """Loads the profile data for a given user_id if existing
-        else it returns None."""
-        if user_id == None or user_id <= 0:
+        else it returns None.
+        """
+        if (user_id == None or user_id == "" or
+            user_id not in file_content['profiles']):
             return None
+
         profile = cls.get_profiles_data()['profiles'][user_id]
         return dict(
             username=profile['username'],
@@ -171,7 +174,7 @@ class ProfilesUtility():
         file_content = cls.get_profiles_data()
         # Remove user from 'active profile'
         if file_content['active_profile'] == user_id:
-            file_content['active_profile'] = 0
+            file_content['active_profile'] = ""
         # Remove both user and token from profiles list
         if user_id in file_content['profiles']:
             del file_content['profiles'][user_id]
@@ -210,7 +213,7 @@ class ProfilesUtility():
             resp = r.json()
             status = resp['status']
             if status == 'success':
-                user_id = resp['data']['user_id']
+                user_id = str(resp['data']['user_id'])
                 token = resp['data']['token']
             elif status == 'fail':
                 if 'username' in resp['data']:
@@ -257,14 +260,18 @@ class BlenderIdPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
+
         active_profile = context.window_manager.blender_id_active_profile
-        if active_profile.unique_id > 0:
+
+        if active_profile.unique_id != "":
             text = "You are logged in as {0}".format(self.blender_id_username)
             layout.label(text=text, icon='WORLD_DATA')
             layout.operator('blender_id.logout')
         else:
             if self.error_message:
-                layout.label(self.error_message)
+                sub = layout.row()
+                sub.alert = True # labels don't display in red :(
+                sub.label(self.error_message, icon="ERROR")
             layout.prop(self, 'blender_id_username')
             layout.prop(self, 'blender_id_password')
             layout.operator('blender_id.login')
@@ -306,7 +313,7 @@ class BlenderIdLogout(Operator):
         active_profile = context.window_manager.blender_id_active_profile
 
         r = ProfilesUtility.logout(active_profile.unique_id)
-        active_profile.unique_id = 0
+        active_profile.unique_id = ""
         active_profile.token = ""
         addon_prefs.error_message = ""
         # TODO: invalidate login token for this user on the server
@@ -315,7 +322,7 @@ class BlenderIdLogout(Operator):
 
 class BlenderIdProfile(PropertyGroup):
 
-    unique_id = IntProperty(
+    unique_id = StringProperty(
         name='ID',
         options={'HIDDEN', 'SKIP_SAVE'}
     )
