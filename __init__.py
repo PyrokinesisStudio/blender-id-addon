@@ -60,6 +60,57 @@ class SystemUtility():
         ).rstrip('/')
 
     @staticmethod
+    def blender_id_server_authenticate(username, password):
+        """Authenticate the user with the server with a single transaction
+        containing username and password (must happen via HTTPS).
+        If the transaction is successful, status will be 'successful' and we
+        return the user's unique blender id and a token (that will be used to
+        represent that username and password combination).
+        If there was a problem, status will be 'fail' and we return an error
+        message. Problems may be with the connection or wrong user/password.
+        """
+        payload = dict(
+            username=username,
+            password=password,
+            hostname=socket.gethostname()
+        )
+        try:
+            r = requests.post("{0}/u/identify".format(
+                SystemUtility.blender_id_endpoint()), data=payload, verify=True)
+        except (requests.exceptions.SSLError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.ConnectionError) as e:
+            r = lambda: None # just create an empty object
+            r.status_code = type(e).__name__
+
+        user_id = None
+        token = None
+        error_message = None
+
+        if r.status_code == 200:
+            resp = r.json()
+            status = resp['status']
+            if status == 'success':
+                user_id = str(resp['data']['user_id'])
+                token = resp['data']['token']
+            elif status == 'fail':
+                if 'username' in resp['data']:
+                    error_message = "Username does not exist"
+                elif 'password' in resp['data']:
+                    error_message = "Password does not match!"
+        else:
+            status = 'fail'
+            error_message = format("There was a problem communicating with"
+                " the server. Error code is: %s" % r.status_code)
+
+        return dict(
+            status=status,
+            user_id=user_id,
+            token=token,
+            error_message=error_message
+        )
+
+    @staticmethod
     def blender_id_server_logout(user_id, token):
         payload = dict(
             user_id=user_id,
@@ -216,57 +267,6 @@ class ProfilesUtility():
         with open(cls.profiles_file, 'w') as outfile:
             json.dump(file_content, outfile)
 
-    @staticmethod
-    def authenticate(username, password):
-        """Authenticate the user with the server with a single transaction
-        containing username and password (must happen via HTTPS).
-        If the transaction is successful, status will be 'successful' and we
-        return the user's unique blender id and a token (that will be used to
-        represent that username and password combination).
-        If there was a problem, status will be 'fail' and we return an error
-        message. Problems may be with the connection or wrong user/password.
-        """
-        payload = dict(
-            username=username,
-            password=password,
-            hostname=socket.gethostname()
-        )
-        try:
-            r = requests.post("{0}/u/identify".format(
-                SystemUtility.blender_id_endpoint()), data=payload, verify=True)
-        except (requests.exceptions.SSLError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.ConnectionError) as e:
-            r = lambda: None # just create an empty object
-            r.status_code = type(e).__name__
-
-        user_id = None
-        token = None
-        error_message = None
-
-        if r.status_code == 200:
-            resp = r.json()
-            status = resp['status']
-            if status == 'success':
-                user_id = str(resp['data']['user_id'])
-                token = resp['data']['token']
-            elif status == 'fail':
-                if 'username' in resp['data']:
-                    error_message = "Username does not exist"
-                elif 'password' in resp['data']:
-                    error_message = "Password does not match!"
-        else:
-            status = 'fail'
-            error_message = format("There was a problem communicating with"
-                " the server. Error code is: %s" % r.status_code)
-
-        return dict(
-            status=status,
-            user_id=user_id,
-            token=token,
-            error_message=error_message
-        )
-
 
 class BlenderIdPreferences(AddonPreferences):
     bl_idname = __name__
@@ -320,7 +320,7 @@ class BlenderIdLogin(Operator):
         addon_prefs = context.user_preferences.addons[__name__].preferences
         active_profile = context.window_manager.blender_id_active_profile
 
-        resp = ProfilesUtility.authenticate(
+        resp = SystemUtility.blender_id_server_authenticate(
             username=addon_prefs.blender_id_username,
             password=addon_prefs.blender_id_password
         )
