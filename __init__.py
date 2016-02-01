@@ -218,7 +218,9 @@ class ProfilesUtility():
             user_id not in file_content['profiles']):
             return None
         else:
-            return file_content['profiles'][user_id]
+            profile = file_content['profiles'][user_id]
+            profile['user_id'] = user_id
+            return profile
 
     @classmethod
     def get_profile(cls, user_id):
@@ -360,13 +362,23 @@ class BlenderIdLogout(Operator):
 
 class BlenderIdProfile(PropertyGroup):
 
+    profile = ProfilesUtility.get_active_profile()
+    if profile:
+        p_user_id = profile['user_id']
+        p_token = profile['token']
+    else:
+        p_user_id = ""
+        p_token = ""
+
     unique_id = StringProperty(
         name='ID',
+        default = p_user_id,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
 
     token = StringProperty(
         name='Token',
+        default = p_token,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
 
