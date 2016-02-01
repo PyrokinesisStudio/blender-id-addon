@@ -59,6 +59,41 @@ class SystemUtility():
             'https://www.blender.org/id'
         ).rstrip('/')
 
+    @staticmethod
+    def blender_id_server_logout(user_id, token):
+        payload = dict(
+            user_id=user_id,
+            token=token
+        )
+        try:
+            r = requests.post("{0}/u/delete_token".format(
+                SystemUtility.blender_id_endpoint()), data=payload, verify=True)
+        except (requests.exceptions.SSLError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.ConnectionError) as e:
+            r = lambda: None # just create an empty object
+            r.status_code = type(e).__name__
+
+        error_message = None
+
+        if r.status_code == 200:
+            resp = r.json()
+            status = resp['status']
+            if status == 'success':
+                pass
+            elif status == 'fail':
+                pass
+        else:
+            status = 'fail'
+            error_message = format("There was a problem communicating with"
+                " the server. Error code is: %s" % r.status_code)
+
+        return dict(
+            status=status,
+            error_message=error_message
+        )
+
+
 
 class ProfilesUtility():
     def __new__(cls, *args, **kwargs):
@@ -312,11 +347,14 @@ class BlenderIdLogout(Operator):
         addon_prefs = context.user_preferences.addons[__name__].preferences
         active_profile = context.window_manager.blender_id_active_profile
 
+        SystemUtility.blender_id_server_logout(active_profile.unique_id,
+            active_profile.token)
+
         r = ProfilesUtility.logout(active_profile.unique_id)
         active_profile.unique_id = ""
         active_profile.token = ""
         addon_prefs.error_message = ""
-        # TODO: invalidate login token for this user on the server
+
         return{'FINISHED'}
 
 
