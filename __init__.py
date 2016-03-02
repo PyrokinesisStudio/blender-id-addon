@@ -346,7 +346,7 @@ class BlenderIdLogout(Operator):
         SystemUtility.blender_id_server_logout(active_profile.unique_id,
                                                active_profile.token)
 
-        r = ProfilesUtility.logout(active_profile.unique_id)
+        ProfilesUtility.logout(active_profile.unique_id)
         active_profile.unique_id = ""
         active_profile.token = ""
         addon_prefs.error_message = ""
