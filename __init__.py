@@ -323,6 +323,7 @@ class BlenderIdLogin(Operator):
         if resp['status'] == "success":
             active_profile.unique_id = resp['user_id']
             active_profile.token = resp['token']
+            addon_prefs.blender_id_password = ''  # Prevent saving in user preferences.
 
             ProfilesUtility.save_as_active_profile(
                 resp['user_id'],
