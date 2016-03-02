@@ -205,7 +205,7 @@ class ProfilesUtility():
         """Get the id of the currently active profile. If there is no
         active profile on the file, this function will return None.
         """
-        cls.get_profiles_data()['active_profile']
+        return cls.get_profiles_data()['active_profile']
 
     @classmethod
     def get_active_profile(cls):
@@ -227,11 +227,12 @@ class ProfilesUtility():
         """Loads the profile data for a given user_id if existing
         else it returns None.
         """
-        if (user_id == None or user_id == "" or
-            user_id not in file_content['profiles']):
+
+        file_content = cls.get_profiles_data()
+        if not user_id or user_id not in file_content['profiles']:
             return None
 
-        profile = cls.get_profiles_data()['profiles'][user_id]
+        profile = file_content['profiles'][user_id]
         return dict(
             username=profile['username'],
             token=profile['token']
