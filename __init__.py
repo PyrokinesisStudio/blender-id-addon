@@ -32,12 +32,12 @@ bl_info = {
     "support": "TESTING"
 }
 
-
 import bpy
 import os
 import json
 import requests
 import socket
+
 from bpy.types import AddonPreferences
 from bpy.types import Operator
 from bpy.types import PropertyGroup
@@ -45,7 +45,7 @@ from bpy.props import StringProperty
 from bpy.props import PointerProperty
 
 
-class SystemUtility():
+class SystemUtility:
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
@@ -78,10 +78,14 @@ class SystemUtility():
             r = requests.post("{0}/u/identify".format(
                 SystemUtility.blender_id_endpoint()), data=payload, verify=True)
         except (requests.exceptions.SSLError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.ConnectionError) as e:
-            r = lambda: None # just create an empty object
-            r.status_code = type(e).__name__
+                requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError) as e:
+            return dict(
+                status='fail',
+                user_id=None,
+                token=None,
+                error_message=str(e)
+            )
 
         user_id = None
         token = None
@@ -101,7 +105,7 @@ class SystemUtility():
         else:
             status = 'fail'
             error_message = format("There was a problem communicating with"
-                " the server. Error code is: %s" % r.status_code)
+                                   " the server. Error code is: %s" % r.status_code)
 
         return dict(
             status=status,
@@ -120,33 +124,29 @@ class SystemUtility():
             r = requests.post("{0}/u/delete_token".format(
                 SystemUtility.blender_id_endpoint()), data=payload, verify=True)
         except (requests.exceptions.SSLError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.ConnectionError) as e:
-            r = lambda: None # just create an empty object
-            r.status_code = type(e).__name__
+                requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError) as e:
+            return dict(
+                status='fail',
+                error_message=format("There was a problem setting up a connection to "
+                                     "the server. Error type is: %s" % type(e).__name__)
+            )
 
-        error_message = None
+        if r.status_code != 200:
+            return dict(
+                status='fail',
+                error_message=format("There was a problem communicating with"
+                                     " the server. Error code is: %s" % r.status_code)
+            )
 
-        if r.status_code == 200:
-            resp = r.json()
-            status = resp['status']
-            if status == 'success':
-                pass
-            elif status == 'fail':
-                pass
-        else:
-            status = 'fail'
-            error_message = format("There was a problem communicating with"
-                " the server. Error code is: %s" % r.status_code)
-
+        resp = r.json()
         return dict(
-            status=status,
-            error_message=error_message
+            status=resp['status'],
+            error_message=None
         )
 
 
-
-class ProfilesUtility():
+class ProfilesUtility:
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
@@ -166,14 +166,7 @@ class ProfilesUtility():
 
         # if the file does not exist
         if not os.path.exists(cls.profiles_file):
-            try:
-                os.makedirs(cls.profiles_path)
-            except FileExistsError:
-                # the directory is already there, it is just missing the file
-                # or the file has no permissions <- TODO
-                pass
-            except Exception as e:
-                raise e
+            os.makedirs(cls.profiles_path, exist_ok=True)
 
             # populate the file
             with open(cls.profiles_file, 'w') as outfile:
@@ -188,12 +181,12 @@ class ProfilesUtility():
                     file_data['active_profile']
                     file_data['profiles']
                     return file_data
-                except (json.decoder.JSONDecodeError, # malformed json data
-                    KeyError, # it doesn't have the expected content
-                    ValueError):
+                except (json.decoder.JSONDecodeError,  # malformed json data
+                        KeyError,  # it doesn't have the expected content
+                        ValueError):
                     print("(%s) "
-                        "Warning: profiles.json is either empty or malformed. "
-                        "The file will be reset." % __name__)
+                          "Warning: profiles.json is either empty or malformed. "
+                          "The file will be reset." % __name__)
 
                     # overwrite the file
                     with open(cls.profiles_file, 'w') as outfile:
@@ -214,13 +207,12 @@ class ProfilesUtility():
         """
         file_content = cls.get_profiles_data()
         user_id = file_content['active_profile']
-        if (user_id == None or user_id == "" or
-            user_id not in file_content['profiles']):
+        if not user_id or user_id not in file_content['profiles']:
             return None
-        else:
-            profile = file_content['profiles'][user_id]
-            profile['user_id'] = user_id
-            return profile
+
+        profile = file_content['profiles'][user_id]
+        profile['user_id'] = user_id
+        return profile
 
     @classmethod
     def get_profile(cls, user_id):
@@ -308,7 +300,7 @@ class BlenderIdPreferences(AddonPreferences):
         else:
             if self.error_message:
                 sub = layout.row()
-                sub.alert = True # labels don't display in red :(
+                sub.alert = True  # labels don't display in red :(
                 sub.label(self.error_message, icon="ERROR")
             layout.prop(self, 'blender_id_username')
             layout.prop(self, 'blender_id_password')
@@ -339,7 +331,7 @@ class BlenderIdLogin(Operator):
             )
         else:
             addon_prefs.error_message = resp['error_message']
-        return{'FINISHED'}
+        return {'FINISHED'}
 
 
 class BlenderIdLogout(Operator):
@@ -351,18 +343,17 @@ class BlenderIdLogout(Operator):
         active_profile = context.window_manager.blender_id_active_profile
 
         SystemUtility.blender_id_server_logout(active_profile.unique_id,
-            active_profile.token)
+                                               active_profile.token)
 
         r = ProfilesUtility.logout(active_profile.unique_id)
         active_profile.unique_id = ""
         active_profile.token = ""
         addon_prefs.error_message = ""
 
-        return{'FINISHED'}
+        return {'FINISHED'}
 
 
 class BlenderIdProfile(PropertyGroup):
-
     profile = ProfilesUtility.get_active_profile()
     if profile:
         p_user_id = profile['user_id']
@@ -373,13 +364,13 @@ class BlenderIdProfile(PropertyGroup):
 
     unique_id = StringProperty(
         name='ID',
-        default = p_user_id,
+        default=p_user_id,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
 
     token = StringProperty(
         name='Token',
-        default = p_token,
+        default=p_token,
         options={'HIDDEN', 'SKIP_SAVE'}
     )
 
