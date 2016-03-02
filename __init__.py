@@ -73,7 +73,7 @@ class SystemUtility:
         payload = dict(
             username=username,
             password=password,
-            hostname=socket.gethostname()
+            host_label='Blender running on %r' % socket.gethostname()
         )
         try:
             r = requests.post("{0}/u/identify".format(
@@ -97,7 +97,8 @@ class SystemUtility:
             status = resp['status']
             if status == 'success':
                 user_id = str(resp['data']['user_id'])
-                token = resp['data']['token']
+                # We just use the access token for now.
+                token = resp['data']['oauth_token']['access_token']
             elif status == 'fail':
                 if 'username' in resp['data']:
                     error_message = "Username does not exist"
