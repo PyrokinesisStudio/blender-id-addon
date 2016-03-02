@@ -36,6 +36,7 @@ import bpy
 import os
 import json
 import requests
+import requests.exceptions
 import socket
 
 from bpy.types import AddonPreferences
