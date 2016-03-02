@@ -182,9 +182,8 @@ class ProfilesUtility:
                     file_data['active_profile']
                     file_data['profiles']
                     return file_data
-                except (json.decoder.JSONDecodeError,  # malformed json data
-                        KeyError,  # it doesn't have the expected content
-                        ValueError):
+                except (ValueError,  # malformed json data
+                        KeyError):  # it doesn't have the expected content
                     print("(%s) "
                           "Warning: profiles.json is either empty or malformed. "
                           "The file will be reset." % __name__)
