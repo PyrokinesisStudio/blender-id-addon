@@ -152,7 +152,7 @@ class ProfilesUtility:
     def __new__(cls, *args, **kwargs):
         raise TypeError("Base class may not be instantiated")
 
-    profiles_path = os.path.join(os.path.expanduser('~'), '.blender_id')
+    profiles_path = bpy.utils.user_resource('CONFIG', "blender_id", create=True)
     profiles_file = os.path.join(profiles_path, 'profiles.json')
 
     @classmethod
