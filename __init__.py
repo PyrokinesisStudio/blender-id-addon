@@ -38,6 +38,8 @@ import json
 import requests
 import requests.exceptions
 import socket
+import random
+import string
 
 from bpy.types import AddonPreferences
 from bpy.types import Operator
@@ -324,7 +326,14 @@ class BlenderIdLogin(Operator):
         if resp['status'] == "success":
             active_profile.unique_id = resp['user_id']
             active_profile.token = resp['token']
-            addon_prefs.blender_id_password = ''  # Prevent saving in user preferences.
+
+            # Prevent saving the password in user preferences. Overwrite the password with a
+            # random string, as just setting to '' might only replace the first byte with 0.
+            pwlen = len(addon_prefs.blender_id_password)
+            rnd = ''.join(random.choice(string.ascii_uppercase + string.digits)
+                          for _ in range(pwlen + 16))
+            addon_prefs.blender_id_password = rnd
+            addon_prefs.blender_id_password = ''
 
             ProfilesUtility.save_as_active_profile(
                 resp['user_id'],
