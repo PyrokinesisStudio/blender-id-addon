@@ -36,11 +36,8 @@ import random
 import string
 
 import bpy
-from bpy.types import AddonPreferences
-from bpy.types import Operator
-from bpy.types import PropertyGroup
-from bpy.props import StringProperty
-from bpy.props import PointerProperty
+from bpy.types import AddonPreferences, Operator, PropertyGroup
+from bpy.props import PointerProperty, StringProperty
 
 from . import api, profiles
 
