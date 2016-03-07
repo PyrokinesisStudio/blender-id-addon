@@ -20,9 +20,9 @@
 
 bl_info = {
     "name": "Blender ID authentication",
-    "author": "Francesco Siddi and Inês Almeida",
-    "version": (0, 0, 2),
-    "blender": (2, 73, 0),
+    "author": "Francesco Siddi, Inês Almeida and Sybren A. Stüvel",
+    "version": (0, 1, 0),
+    "blender": (2, 76, 0),
     "location": "Add-on preferences",
     "description":
         "Stores your Blender ID credentials for usage with other add-ons",
