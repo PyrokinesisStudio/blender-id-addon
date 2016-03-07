@@ -55,6 +55,11 @@ class BlenderIdPreferences(AddonPreferences):
         default='',
         options={'HIDDEN', 'SKIP_SAVE'}
     )
+    ok_message = StringProperty(
+        name='Message',
+        default='',
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
     blender_id_username = StringProperty(
         name='Username',
         default=p_username,
@@ -67,32 +72,60 @@ class BlenderIdPreferences(AddonPreferences):
         subtype='PASSWORD'
     )
 
+    def reset_messages(self):
+        self.ok_message = ''
+        self.error_message = ''
+
     def draw(self, context):
         layout = self.layout
 
         active_profile = context.window_manager.blender_id_active_profile
 
-        if active_profile.unique_id != "":
+        if self.error_message:
+            sub = layout.row()
+            sub.alert = True  # labels don't display in red :(
+            sub.label(self.error_message, icon="ERROR")
+        if self.ok_message:
+            sub = layout.row()
+            sub.label(self.ok_message, icon='TRIA_RIGHT')
+
+        if active_profile.unique_id:
             text = "You are logged in as {0}".format(self.blender_id_username)
             layout.label(text=text, icon='WORLD_DATA')
-            layout.operator('blender_id.logout')
+            row = layout.row()
+            row.operator('blender_id.logout')
+            row.operator('blender_id.validate')
         else:
-            if self.error_message:
-                sub = layout.row()
-                sub.alert = True  # labels don't display in red :(
-                sub.label(self.error_message, icon="ERROR")
             layout.prop(self, 'blender_id_username')
             layout.prop(self, 'blender_id_password')
+
             layout.operator('blender_id.login')
 
 
-class BlenderIdLogin(Operator):
+class BlenderIdMixin:
+    @staticmethod
+    def addon_prefs(context):
+        preferences = context.user_preferences.addons[__name__].preferences
+        return preferences
+
+    @staticmethod
+    def active_profile(context):
+        return context.window_manager.blender_id_active_profile
+
+    @classmethod
+    def prefs_profile(cls, context):
+        preferences = cls.addon_prefs(context)
+        preferences.reset_messages()
+
+        return preferences, cls.active_profile(context)
+
+
+class BlenderIdLogin(BlenderIdMixin, Operator):
     bl_idname = 'blender_id.login'
     bl_label = 'Login'
 
     def execute(self, context):
-        addon_prefs = context.user_preferences.addons[__name__].preferences
-        active_profile = context.window_manager.blender_id_active_profile
+        addon_prefs, active_profile = self.prefs_profile(context)
 
         resp = api.blender_id_server_authenticate(
             username=addon_prefs.blender_id_username,
@@ -121,13 +154,28 @@ class BlenderIdLogin(Operator):
         return {'FINISHED'}
 
 
-class BlenderIdLogout(Operator):
+class BlenderIdValidate(BlenderIdMixin, Operator):
+    bl_idname = 'blender_id.validate'
+    bl_label = 'Validate'
+
+    def execute(self, context):
+        addon_prefs, active_profile = self.prefs_profile(context)
+
+        resp = api.blender_id_server_validate(token=active_profile.token)
+        if resp is None:
+            addon_prefs.ok_message = 'Authentication token is valid.'
+        else:
+            addon_prefs.error_message = '%s; you probably want to log out and log in again.' % resp
+
+        return {'FINISHED'}
+
+
+class BlenderIdLogout(BlenderIdMixin, Operator):
     bl_idname = 'blender_id.logout'
     bl_label = 'Logout'
 
     def execute(self, context):
-        addon_prefs = context.user_preferences.addons[__name__].preferences
-        active_profile = context.window_manager.blender_id_active_profile
+        addon_prefs, active_profile = self.prefs_profile(context)
 
         api.blender_id_server_logout(active_profile.unique_id,
                                      active_profile.token)
@@ -135,7 +183,6 @@ class BlenderIdLogout(Operator):
         profiles.logout(active_profile.unique_id)
         active_profile.unique_id = ""
         active_profile.token = ""
-        addon_prefs.error_message = ""
 
         return {'FINISHED'}
 

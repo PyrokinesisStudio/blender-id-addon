@@ -92,6 +92,26 @@ def blender_id_server_authenticate(username, password):
     )
 
 
+def blender_id_server_validate(token):
+    """Validate the auth token with the server.
+
+    @param token: the authentication token
+    @type token: str
+    @returns: None if the token is valid, or an error message when it's invalid.
+    """
+
+    try:
+        r = requests.post("%s/u/validate_token" % blender_id_endpoint(),
+                          data={'token': token}, verify=True)
+    except requests.exceptions.RequestException as e:
+        return str(e)
+
+    if r.status_code == 200:
+        return None
+
+    return 'Authentication token invalid'
+
+
 def blender_id_server_logout(user_id, token):
     """Logs out of the Blender ID service by removing the token server-side.
 
