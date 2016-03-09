@@ -39,7 +39,7 @@ import bpy
 from bpy.types import AddonPreferences, Operator, PropertyGroup
 from bpy.props import PointerProperty, StringProperty
 
-from . import api, profiles
+from . import communication, profiles
 
 
 class BlenderIdPreferences(AddonPreferences):
@@ -127,7 +127,7 @@ class BlenderIdLogin(BlenderIdMixin, Operator):
     def execute(self, context):
         addon_prefs, active_profile = self.prefs_profile(context)
 
-        resp = api.blender_id_server_authenticate(
+        resp = communication.blender_id_server_authenticate(
             username=addon_prefs.blender_id_username,
             password=addon_prefs.blender_id_password
         )
@@ -161,7 +161,7 @@ class BlenderIdValidate(BlenderIdMixin, Operator):
     def execute(self, context):
         addon_prefs, active_profile = self.prefs_profile(context)
 
-        resp = api.blender_id_server_validate(token=active_profile.token)
+        resp = communication.blender_id_server_validate(token=active_profile.token)
         if resp is None:
             addon_prefs.ok_message = 'Authentication token is valid.'
         else:
@@ -177,8 +177,8 @@ class BlenderIdLogout(BlenderIdMixin, Operator):
     def execute(self, context):
         addon_prefs, active_profile = self.prefs_profile(context)
 
-        api.blender_id_server_logout(active_profile.unique_id,
-                                     active_profile.token)
+        communication.blender_id_server_logout(active_profile.unique_id,
+                                               active_profile.token)
 
         profiles.logout(active_profile.unique_id)
         active_profile.unique_id = ""

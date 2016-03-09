@@ -65,6 +65,8 @@ def get_active_user_id():
 def get_active_profile():
     """Pick the active profile from profiles.json. If there is no
     active profile on the file, this function will return None.
+
+    @returns: dict like {'user_id': 1234, 'username': 'email@blender.org'}
     """
     file_content = get_profiles_data()
     user_id = file_content['active_profile']
