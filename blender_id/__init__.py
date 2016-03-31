@@ -21,15 +21,14 @@
 bl_info = {
     "name": "Blender ID authentication",
     "author": "Francesco Siddi, Inês Almeida and Sybren A. Stüvel",
-    "version": (0, 1, 0),
-    "blender": (2, 76, 0),
+    "version": (1, 0, 0),
+    "blender": (2, 77, 0),
     "location": "Add-on preferences",
     "description":
         "Stores your Blender ID credentials for usage with other add-ons",
     "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/"
                 "Scripts/System/BlenderID",
-    "category": "System",
-    "support": "TESTING"
+    "category": "System"
 }
 
 import random
